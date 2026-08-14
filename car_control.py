@@ -39,9 +39,28 @@ def point_to_segment_distance(px,py,ax,ay,bx,by):
     seg = ux**2 + uy**2
 
     if seg == 0 :
-        return dist.hypot(vx,vy)
-    return math.sqrt(px*px + py*py)
+        return math.hypot(vx,vy)
 
+    t = max(0,min(1,(vx*ux + vy*uy)/seg))
+    projx = ax + t * ux
+    projy = ay + t * uy
+    return math.hypot(px - projx,py - projy)
+
+def ray_cast(origin,angle,obstacles):
+    ox , oy = origin
+    dx , dy = math.cos(angle), math.sin(angle)
+    for d in range(0, MAX_SENSOR_DIST,SENSOR_STEP):
+        px = ox + dx * d
+        py = oy + dy * d
+
+        if px < 0 or px> GAMEW or py < 0 or py > GAMEH:
+            return d
+
+        for i in range (0,len(obstacles)-1,2):
+            if(point_to_segment_distance(px,py,obstacles[i][0],obstacles[i][1],
+                                         obstacles[i+1][0],obstacles[i+1][1]) < 2):
+                return d
+    return MAX_SENSOR_DIST  # ray didn't hit
 
 class Car:
     def __init__(self):
@@ -93,6 +112,8 @@ def main():
     obstacles = []
     prev_mouse = None
 
+    show_sensor = True
+
     while running:
         dt = clock.tick(60)/1000
         screen.fill(GAME_BG)
@@ -102,6 +123,11 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_v:
+                    show_sensor = not show_sensor
+                elif event.key == pygame.K_c:
+                    obstacles.clear()
 
         # user input
         keys = pygame.key.get_pressed()
@@ -136,9 +162,24 @@ def main():
                 score += 1
                 max_score = max(max_score,score)
 
-        # screen
+        # Draw obstacles
         for i in range(0,len(obstacles)-1,2):
             pygame.draw.line(screen,OBSTACLE_COLOR,obstacles[i],obstacles[i+1],3)
+
+        # Draw Sensor
+        if show_sensor and not game_over:
+            for a in SENSOR_ANGLE:
+                d = ray_cast((car.x,car.y),car.angle+a,obstacles)
+                end_x = car.x + math.cos(car.angle + a)*d
+                end_y = car.y + math.sin(car.angle + a)*d
+                pygame.draw.line(screen,SENSOR_COLOR,
+                                 (car.x,car.y),
+                                 (end_x,end_y),1
+                                 )
+                pygame.draw.circle(screen,SENSOR_COLOR,
+                                   (int(end_x),int(end_y)),
+                                   3
+                                   )
 
         car.draw(screen)
         pygame.display.flip()
